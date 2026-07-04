@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Letterboxd Review Guesser</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body style="background-color: #14181c;" class="text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="max-w-2xl w-full bg-[#20242c] rounded-xl shadow-2xl p-6 border border-slate-700">
+        <h1 class="text-3xl font-bold text-center mb-6 text-green-400">🎬  Letterboxd Guesser</h1>
+        
+        <div id="setup-screen" class="space-y-4">
+            <p class="text-center text-slate-400">Enter a Letterboxd username to generate a game from their recent reviews.</p>
+            <div class="flex gap-2">
+                <input type="text" id="username-input" placeholder="Letterboxd Username" 
+                       class="flex-1 px-4 py-2 rounded-lg bg-slate-700 border border-slate-600 focus:outline-none focus:border-green-500 text-white">
+                <button id="start-btn" onclick="fetchGame()" 
+                        class="bg-green-500 hover:bg-green-600 text-slate-900 font-bold px-6 py-2 rounded-lg transition">
+                    Start Game
+                </button>
+            </div>
+            <p id="error-msg" class="text-red-400 text-sm hidden text-center"></p>
+        </div>
+
+        <div id="game-screen" class="hidden space-y-6 animate-fade-in">
+            <div class="bg-slate-900 p-6 rounded-lg border border-slate-700 italic text-lg relative">
+                <span class="text-4xl text-slate-600 absolute top-2 left-2 font-serif">“</span>
+                <p id="review-text" class="px-6 py-2 text-slate-300 leading-relaxed"></p>
+                <span class="text-4xl text-slate-600 absolute bottom-2 right-2 font-serif">”</span>
+            </div>
+
+            <div id="action-area" class="space-y-4">
+                <div class="flex gap-2">
+                    <input type="text" id="guess-input" placeholder="What movie is this?" 
+                           class="flex-1 px-4 py-2 rounded-lg bg-slate-700 border border-slate-600 focus:outline-none focus:border-green-500 text-white">
+                    <button onclick="checkGuess()" 
+                            class="bg-blue-500 hover:bg-blue-600 text-white font-bold px-6 py-2 rounded-lg transition">
+                        Submit
+                    </button>
+                </div>
+            </div>
+
+            <div id="result-box" class="hidden p-4 rounded-lg text-center font-bold text-lg"></div>
+
+            <div class="flex justify-between pt-4 border-t border-slate-700">
+                <button onclick="changeUser()" class="text-slate-400 hover:text-white transition text-sm">← Change User</button>
+                <button onclick="fetchGame()" class="text-green-400 hover:text-green-300 transition text-sm font-semibold">Next Review →</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Adjust this URL if your local FastAPI server runs on a different port
+        const API_BASE_URL = 'http://127.0.0.1:8000'; 
+        
+        let currentTargetUsername = '';
+        let correctAnswer = '';
+
+        async function fetchGame() {
+            const usernameInput = document.getElementById('username-input');
+            const errorMsg = document.getElementById('error-msg');
+            
+            // Use existing username if hitting 'Next Review', otherwise grab from input
+            const username = currentTargetUsername || usernameInput.value.trim();
+            
+            if (!username) {
+                showError("Please enter a username.");
+                return;
+            }
+
+            errorMsg.classList.add('hidden');
+            document.getElementById('start-btn').innerText = "Loading...";
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/quiz/${username}`);
+                if (!response.ok) throw new Error("Could not fetch data for this user.");
+                
+                const data = await response.json();
+                
+                // Save state
+                currentTargetUsername = username;
+                correctAnswer = data.correct_answer;
+
+                // Update UI elements
+                document.getElementById('review-text').innerText = data.review;
+                
+                // Toggle screens
+                document.getElementById('setup-screen').classList.add('hidden');
+                document.getElementById('game-screen').classList.remove('hidden');
+                
+                // Reset inputs/results
+                document.getElementById('guess-input').value = '';
+                document.getElementById('result-box').classList.add('hidden');
+                document.getElementById('action-area').classList.remove('hidden');
+            } catch (err) {
+                showError("User not found or has no written reviews in their recent activity.");
+            } finally {
+                document.getElementById('start-btn').innerText = "Start Game";
+            }
+        }
+
+        function checkGuess() {
+            const userGuess = document.getElementById('guess-input').value.trim();
+            const resultBox = document.getElementById('result-box');
+            
+            if (!userGuess) return;
+
+            resultBox.classList.remove('hidden');
+            document.getElementById('action-area').classList.add('hidden'); // Hide the input field
+
+            // Case-insensitive direct string matching
+            if (userGuess.toLowerCase() === correctAnswer.toLowerCase()) {
+                resultBox.className = "p-4 rounded-lg text-center font-bold text-lg bg-green-900/50 text-green-400 border border-green-700";
+                resultBox.innerText = `🎉 Correct! The answer is ${correctAnswer}.`;
+            } else {
+                resultBox.className = "p-4 rounded-lg text-center font-bold text-lg bg-red-900/50 text-red-400 border border-red-700";
+                resultBox.innerText = `❌ Wrong! The correct answer was: ${correctAnswer}.`;
+            }
+        }
+
+        function changeUser() {
+            currentTargetUsername = '';
+            document.getElementById('setup-screen').classList.remove('hidden');
+            document.getElementById('game-screen').classList.add('hidden');
+        }
+
+        function showError(message) {
+            const errorMsg = document.getElementById('error-msg');
+            errorMsg.innerText = message;
+            errorMsg.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
